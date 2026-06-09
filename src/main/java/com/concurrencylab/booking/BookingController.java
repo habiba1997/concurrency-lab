@@ -1,10 +1,10 @@
 package com.concurrencylab.booking;
 
-import com.concurrencylab.booking.dto.BookingResponse;
-import com.concurrencylab.booking.dto.ConcertResponse;
 import com.concurrencylab.booking.dto.CreateBookingRequest;
 import com.concurrencylab.booking.dto.CreateConcertRequest;
 import com.concurrencylab.booking.dto.StatsResponse;
+import com.concurrencylab.booking.model.Booking;
+import com.concurrencylab.booking.model.Concert;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,26 +24,26 @@ public class BookingController {
     }
 
     @PostMapping
-    public ResponseEntity<ConcertResponse> createConcert(@Valid @RequestBody CreateConcertRequest req) {
-        String id = service.createConcert(req.name(), req.capacity());
+    public ResponseEntity<Concert> createConcert(@Valid @RequestBody CreateConcertRequest req) {
+        Concert concert = service.createConcert(req.name(), req.capacity());
         return ResponseEntity
-                .created(URI.create("/concerts/" + id))
-                .body(new ConcertResponse(id, req.name(), req.capacity()));
+                .created(URI.create("/concerts/" + concert.getName()))
+                .body(concert);
     }
 
     @PostMapping("/{concertId}/bookings")
-    public ResponseEntity<BookingResponse> createBooking(
+    public ResponseEntity<Booking> createBooking(
             @PathVariable String concertId,
             @Valid @RequestBody CreateBookingRequest req) {
-        String bookingId = service.createBooking(concertId, req.seats());
+        Booking booking = service.createBooking(concertId, req.seats());
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(new BookingResponse(bookingId, req.seats(), java.time.Instant.now()));
+                .body(booking);
     }
 
     @DeleteMapping("/{concertId}/bookings/{bookingId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void cancelBooking(@PathVariable String concertId, @PathVariable String bookingId) {
+    public void cancelBooking(@PathVariable String concertId, @PathVariable Integer bookingId) {
         service.cancelBooking(concertId, bookingId);
     }
 
@@ -53,7 +53,7 @@ public class BookingController {
     }
 
     @GetMapping("/{concertId}/bookings")
-    public List<BookingResponse> listBookings(@PathVariable String concertId) {
+    public List<Booking> listBookings(@PathVariable String concertId) {
         return service.listBookings(concertId);
     }
 }

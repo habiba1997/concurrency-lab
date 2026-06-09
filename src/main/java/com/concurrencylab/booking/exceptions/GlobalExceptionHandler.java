@@ -1,4 +1,4 @@
-package com.concurrencylab.booking;
+package com.concurrencylab.booking.exceptions;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

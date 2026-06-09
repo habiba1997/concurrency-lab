@@ -1,40 +1,55 @@
 package com.concurrencylab.booking.model;
 
-/**
- * A Concert holds:
- *   - an id (immutable)
- *   - a name (immutable)
- *   - a capacity (immutable)
- *   - a collection of active bookings (mutable)
- *   - running counters: how many seats are booked, totalBookings, totalCancellations
- *
- * Design decisions YOU need to make:
- *   - How will you store bookings? (think: many concurrent reads, many concurrent writes)
- *   - How will you track "booked seats" so that booking + reading stats from
- *     different threads always agree?
- *   - When a booking is attempted, the "is there room? if yes, book" check must
- *     happen as one indivisible step. How will you guarantee that?
- *   - When stats are read, the 5 returned numbers must all reflect the SAME moment.
- *     How will you guarantee that?
- *
- * Fill in the fields and methods. Keep this class focused on Concert state only;
- * IDs and external orchestration belong in the Service.
- */
+import static com.concurrencylab.utils.Utils.getId;
+
+import com.concurrencylab.booking.exceptions.InsufficientSeatsException;
+import java.time.Instant;
+import java.util.HashMap;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
+
+@Getter
+@Setter
+@AllArgsConstructor
 public class Concert {
 
-    private final String id;
-    private final String name;
-    private final int capacity;
+    private String name;
+    private Integer capacity = 0;
+    private Integer reservedSeats = 0;
+    private Integer canceledSeats = 0;
+    private HashMap<Integer, Booking> bookings;
 
-
-    public Concert(String id, String name, int capacity) {
-        this.id = id;
+    public Concert(String name, Integer capacity) {
         this.name = name;
         this.capacity = capacity;
     }
 
-    public String getId()    { return id; }
-    public String getName()  { return name; }
-    public int getCapacity() { return capacity; }
+    public Booking reserve(int reservedSeats) {
+        Integer availableSeats = this.getAvailableSeats();
+        if (availableSeats < reservedSeats) {
+            throw new InsufficientSeatsException(reservedSeats, availableSeats);
+        }
+        this.setReservedSeats(this.reservedSeats + reservedSeats);
+        Booking booking = new Booking(getId(), reservedSeats, Instant.now());
+        this.bookings.put(booking.getId(), booking);
+        return booking;
+    }
 
+    public Integer getAvailableSeats() {
+        int available = capacity - reservedSeats;
+        if (available < 0) {
+            throw new IllegalArgumentException("Issue Occurred: Seats must be greater than zero");
+        }
+        return available;
+    }
+
+
+    public void cancelBooking(Integer bookingId) {
+        Booking booking = bookings.get(bookingId);
+        this.canceledSeats = canceledSeats + booking.getSeats();
+        this.reservedSeats = this.reservedSeats - booking.getSeats();
+        this.getBookings().remove(bookingId);
+    }
 }

@@ -1,19 +1,20 @@
 package com.concurrencylab.booking;
 
-import com.concurrencylab.booking.dto.BookingResponse;
 import com.concurrencylab.booking.dto.StatsResponse;
 
+import com.concurrencylab.booking.model.Booking;
+import com.concurrencylab.booking.model.Concert;
 import java.util.List;
 
 public interface BookingService {
 
-    String createConcert(String name, int capacity);
+    Concert createConcert(String name, int capacity);
 
-    String createBooking(String concertId, int seats);
+    Booking createBooking(String concertName, int seats);
 
-    void cancelBooking(String concertId, String bookingId);
+    void cancelBooking(String concertName, Integer bookingId);
 
     StatsResponse getStats(String concertId);
 
-    List<BookingResponse> listBookings(String concertId);
+    List<Booking> listBookings(String concertId);
 }

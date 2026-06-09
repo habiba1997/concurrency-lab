@@ -1,8 +1,8 @@
 package com.concurrencylab.booking.dto;
 
 public record StatsResponse(
-        int capacity,
-        int booked,
-        int available,
-        long totalBookings,
-        long totalCancellations) {}
+        Integer capacity,
+        Integer booked,
+        Integer available,
+        Integer totalBookings,
+        Integer totalCancellations) {}

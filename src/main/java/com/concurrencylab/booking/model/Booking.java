@@ -1,19 +1,18 @@
 package com.concurrencylab.booking.model;
 
 import java.time.Instant;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 
+
+@Getter
+@Setter
+@AllArgsConstructor
 public final class Booking {
-    private final String id;
-    private final int seats;
-    private final Instant createdAt;
 
-    public Booking(String id, int seats, Instant createdAt) {
-        this.id = id;
-        this.seats = seats;
-        this.createdAt = createdAt;
-    }
+    private Integer id;
+    private Integer seats = 0;
+    private Instant createdAt;
 
-    public String getId()         { return id; }
-    public int getSeats()         { return seats; }
-    public Instant getCreatedAt() { return createdAt; }
 }

@@ -1,4 +1,4 @@
-package com.concurrencylab.booking;
+package com.concurrencylab.booking.exceptions;
 
 public class InsufficientSeatsException extends RuntimeException {
     public InsufficientSeatsException(int requested, int available) {

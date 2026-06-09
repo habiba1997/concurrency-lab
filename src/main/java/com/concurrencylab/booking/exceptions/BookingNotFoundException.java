@@ -1,7 +1,7 @@
-package com.concurrencylab.booking;
+package com.concurrencylab.booking.exceptions;
 
 public class BookingNotFoundException extends RuntimeException {
-    public BookingNotFoundException(String bookingId) {
+    public BookingNotFoundException(Integer bookingId) {
         super("Booking not found: " + bookingId);
     }
 }

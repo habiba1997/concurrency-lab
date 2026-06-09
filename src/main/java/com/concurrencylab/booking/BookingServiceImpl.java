@@ -1,55 +1,79 @@
 package com.concurrencylab.booking;
 
-import com.concurrencylab.booking.dto.BookingResponse;
 import com.concurrencylab.booking.dto.StatsResponse;
+import com.concurrencylab.booking.exceptions.BookingNotFoundException;
+import com.concurrencylab.booking.exceptions.ConcertNotFoundException;
+import com.concurrencylab.booking.model.Booking;
+import com.concurrencylab.booking.model.Concert;
+import java.util.HashMap;
+import java.util.List;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 
-/**
- * Your implementation goes here.
- *
- * Reminders:
- *   - Spring Boot serves requests on a thread pool (default ~200 threads).
- *     EVERY method below can be called by many threads at the same time.
- *   - There is no database. Storage lives in this instance's memory.
- *   - You decide every storage choice (collection types, counters, IDs).
- *   - Acceptance invariants (must hold under any load):
- *       I1: booked + available == capacity, always
- *       I2: booked never exceeds capacity
- *       I3: every successful createBooking returns an ID that listBookings will show
- *       I4: double-cancellation -> exactly one success, one 404
- *       I5: stats returns a coherent snapshot (numbers agree with each other)
- *       I6: 1000 RPS for 60s -> no 500 errors, no inconsistencies
- *
- * Throw the right exceptions; the GlobalExceptionHandler maps them to HTTP codes.
- */
 @Service
 public class BookingServiceImpl implements BookingService {
 
+    private HashMap<String, Concert> concerts = new HashMap<>();
 
     @Override
-    public String createConcert(String name, int capacity) {
-        throw new UnsupportedOperationException("TODO: createConcert");
+    public Concert createConcert(String name, int capacity) {
+        if (concerts.containsKey(name)) {
+            Concert concert = concerts.get(name);
+            if (concert.getCapacity() > capacity) {
+                throw new IllegalArgumentException(
+                        "Issue Occurred: New capacity must be greater than current capacity");
+            }
+            concert.setCapacity(capacity);
+            concerts.put(name, concert);
+        } else {
+            concerts.put(name, new Concert(name, capacity));
+        }
+        return concerts.get(name);
     }
 
     @Override
-    public String createBooking(String concertId, int seats) {
-        throw new UnsupportedOperationException("TODO: createBooking");
+    public Booking createBooking(String concertName, int seats) {
+        if (!concerts.containsKey(concertName)) {
+            throw new ConcertNotFoundException(concertName);
+        }
+        Concert concert = concerts.get(concertName);
+        Booking reservedBooking = concert.reserve(seats);
+        concerts.put(concertName, concert);
+        return reservedBooking;
     }
 
     @Override
-    public void cancelBooking(String concertId, String bookingId) {
-        throw new UnsupportedOperationException("TODO: cancelBooking");
+    public void cancelBooking(String concertName, Integer bookingId) {
+        // Look up concert by ID. If missing → ConcertNotFoundException.
+        if (!concerts.containsKey(concertName)) {
+            throw new ConcertNotFoundException(concertName);
+        }
+        Concert concert = concerts.get(concertName);
+        //Look up booking by ID inside the concert. If missing OR already cancelled → BookingNotFoundException.
+        if (!concert.getBookings().containsKey(bookingId)) {
+            throw new BookingNotFoundException(bookingId);
+        }
+        concert.cancelBooking(bookingId);
     }
 
     @Override
-    public StatsResponse getStats(String concertId) {
-        throw new UnsupportedOperationException("TODO: getStats");
+    public StatsResponse getStats(String concertName) {
+        // Look up concert by ID. If missing → ConcertNotFoundException.
+        if (!concerts.containsKey(concertName)) {
+            throw new ConcertNotFoundException(concertName);
+        }
+        Concert concert = concerts.get(concertName);
+        return new StatsResponse(concert.getCapacity(), concert.getReservedSeats(), concert.getAvailableSeats(),
+                concert.getReservedSeats() + concert.getCanceledSeats(), concert.getCanceledSeats());
     }
 
     @Override
-    public List<BookingResponse> listBookings(String concertId) {
-        throw new UnsupportedOperationException("TODO: listBookings");
+    public List<Booking> listBookings(String concertName) {
+        // Look up concert by ID. If missing → ConcertNotFoundException.
+        if (!concerts.containsKey(concertName)) {
+            throw new ConcertNotFoundException(concertName);
+        }
+        return concerts.get(concertName).getBookings().values().stream().toList();
     }
+
 }
