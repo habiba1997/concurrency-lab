@@ -89,45 +89,20 @@ for i in {1..20}; do mvn -q -Dtest=BookingServiceConcurrencyTest test || { echo 
 
 ---
 
-## Load test with JMeter (Scenario A — Overbooking)
+## Load test with JMeter
 
 This is where it gets real. Implementations that pass single-threaded tests can
 still fail catastrophically here.
 
-```bash
-# 1. App must be running (mvn spring-boot:run in another terminal)
+You build the JMeter test plans yourself. See `load-tests/README.md` for the
+full set of scenarios (A–E), each with:
+- exact configuration (threads, ramp-up, samplers, listeners)
+- expected pass/fail signals
+- which acceptance invariant each scenario stresses
 
-# 2. Create a fresh concert with capacity=100
-CONCERT_ID=$(curl -sX POST http://localhost:8080/concerts \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Load Test","capacity":100}' | jq -r .concertId)
-echo "Concert ID: $CONCERT_ID"
-
-# 3. Run the JMeter test (500 threads, each books 1 seat)
-cd load-tests
-./run-overbooking-test.sh "$CONCERT_ID"
-```
-
-### What to look for in the output
-
-The script prints a count of response codes. **Expected:**
-- ~100 of HTTP `201` (booking succeeded)
-- ~400 of HTTP `409` (insufficient seats)
-
-**Common failure modes:**
-- `>100` of `201` → INVARIANT I2 violated. You oversold the concert.
-- Any `500` → unhandled exception. Likely a `ConcurrentModificationException`
-  or `NullPointerException` from an unsafe collection.
-- `<100` of `201` → bookings were lost.
-
-Then check the stats:
-```bash
-curl -s http://localhost:8080/concerts/$CONCERT_ID/stats | jq .
-```
-- `booked + available` must equal `100`. If it doesn't, INVARIANT I1 is broken.
-
-Open `load-tests/results/report/index.html` for the full JMeter dashboard
-(throughput, latency percentiles, error rate).
+Quickstart: open JMeter (`jmeter` in terminal), build the plan for **Scenario A
+— Overbooking** following the structure in `load-tests/README.md`, point it at
+a freshly-created concert with capacity 100, and run with 500 threads.
 
 ---
 
