@@ -1,7 +1,7 @@
 package com.concurrencylab.booking.exceptions;
 
 public class ConcertNotFoundException extends RuntimeException {
-    public ConcertNotFoundException(String concertId) {
-        super("Concert not found: " + concertId);
+    public ConcertNotFoundException(String concertName) {
+        super("Concert not found: " + concertName);
     }
 }

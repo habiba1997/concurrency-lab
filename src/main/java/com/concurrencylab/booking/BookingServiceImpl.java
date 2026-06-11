@@ -43,7 +43,7 @@ public class BookingServiceImpl implements BookingService {
     }
 
     @Override
-    public void cancelBooking(String concertName, Integer bookingId) {
+    public void cancelBooking(String concertName, String bookingId) {
         // Look up concert by ID. If missing → ConcertNotFoundException.
         if (!concerts.containsKey(concertName)) {
             throw new ConcertNotFoundException(concertName);

@@ -12,9 +12,9 @@ public interface BookingService {
 
     Booking createBooking(String concertName, int seats);
 
-    void cancelBooking(String concertName, Integer bookingId);
+    void cancelBooking(String concertName, String bookingId);
 
-    StatsResponse getStats(String concertId);
+    StatsResponse getStats(String concertName);
 
-    List<Booking> listBookings(String concertId);
+    List<Booking> listBookings(String concertName);
 }

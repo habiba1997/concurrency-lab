@@ -31,29 +31,29 @@ public class BookingController {
                 .body(concert);
     }
 
-    @PostMapping("/{concertId}/bookings")
+    @PostMapping("/{concertName}/bookings")
     public ResponseEntity<Booking> createBooking(
-            @PathVariable String concertId,
+            @PathVariable String concertName,
             @Valid @RequestBody CreateBookingRequest req) {
-        Booking booking = service.createBooking(concertId, req.seats());
+        Booking booking = service.createBooking(concertName, req.seats());
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(booking);
     }
 
-    @DeleteMapping("/{concertId}/bookings/{bookingId}")
+    @DeleteMapping("/{concertName}/bookings/{bookingId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void cancelBooking(@PathVariable String concertId, @PathVariable Integer bookingId) {
-        service.cancelBooking(concertId, bookingId);
+    public void cancelBooking(@PathVariable String concertName, @PathVariable String bookingId) {
+        service.cancelBooking(concertName, bookingId);
     }
 
-    @GetMapping("/{concertId}/stats")
-    public StatsResponse getStats(@PathVariable String concertId) {
-        return service.getStats(concertId);
+    @GetMapping("/{concertName}/stats")
+    public StatsResponse getStats(@PathVariable String concertName) {
+        return service.getStats(concertName);
     }
 
-    @GetMapping("/{concertId}/bookings")
-    public List<Booking> listBookings(@PathVariable String concertId) {
-        return service.listBookings(concertId);
+    @GetMapping("/{concertName}/bookings")
+    public List<Booking> listBookings(@PathVariable String concertName) {
+        return service.listBookings(concertName);
     }
 }

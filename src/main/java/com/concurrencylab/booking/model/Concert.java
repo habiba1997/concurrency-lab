@@ -1,6 +1,6 @@
 package com.concurrencylab.booking.model;
 
-import static com.concurrencylab.utils.Utils.getId;
+import static com.concurrencylab.utils.Utils.generateUUID;
 
 import com.concurrencylab.booking.exceptions.InsufficientSeatsException;
 import java.time.Instant;
@@ -19,7 +19,7 @@ public class Concert {
     private Integer capacity = 0;
     private Integer reservedSeats = 0;
     private Integer canceledSeats = 0;
-    private HashMap<Integer, Booking> bookings;
+    private HashMap<String, Booking> bookings = new HashMap<>();
 
     public Concert(String name, Integer capacity) {
         this.name = name;
@@ -32,8 +32,8 @@ public class Concert {
             throw new InsufficientSeatsException(reservedSeats, availableSeats);
         }
         this.setReservedSeats(this.reservedSeats + reservedSeats);
-        Booking booking = new Booking(getId(), reservedSeats, Instant.now());
-        this.bookings.put(booking.getId(), booking);
+        Booking booking = new Booking(generateUUID(), reservedSeats, Instant.now());
+        this.bookings.put(booking.getUuid(), booking);
         return booking;
     }
 
@@ -46,7 +46,7 @@ public class Concert {
     }
 
 
-    public void cancelBooking(Integer bookingId) {
+    public void cancelBooking(String bookingId) {
         Booking booking = bookings.get(bookingId);
         this.canceledSeats = canceledSeats + booking.getSeats();
         this.reservedSeats = this.reservedSeats - booking.getSeats();

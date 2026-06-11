@@ -32,7 +32,7 @@ mvn spring-boot:run
 curl -sX POST http://localhost:8080/concerts \
   -H 'Content-Type: application/json' \
   -d '{"name":"Overbooking Test","capacity":100}'
-# Copy the concertId from the response.
+# Copy the concertName from the response.
 ```
 
 ### JMeter test plan structure
@@ -85,7 +85,7 @@ curl -s http://localhost:8080/concerts/<YOUR_CONCERT_ID>/stats
 Create a fresh concert with capacity = 1000. Pre-populate 500 bookings via a
 small `for` loop:
 ```bash
-CID=<concertId>
+CID=<concertName>
 for i in {1..500}; do
   curl -sX POST http://localhost:8080/concerts/$CID/bookings \
     -H 'Content-Type: application/json' -d '{"seats":1}' > /dev/null

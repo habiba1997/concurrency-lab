@@ -26,10 +26,10 @@ curl -sX POST http://localhost:8080/concerts \
   -d '{"name":"Overbooking Test","capacity":100}'
 ```
 
-**Copy the `concertId` from the response — you'll paste it into JMeter.**
+**Copy the `concertName` from the response — you'll paste it into JMeter.**
 Example response:
 ```json
-{"concertId":"3f9b8c12-8a4d-...","name":"Overbooking Test","capacity":100}
+{"concertName":"3f9b8c12-8a4d-...","name":"Overbooking Test","capacity":100}
 ```
 
 ---
@@ -245,7 +245,7 @@ A single passing run is **not enough**. Concurrency bugs come and go. To re-run:
      -H 'Content-Type: application/json' \
      -d '{"name":"Overbooking Test","capacity":100}'
    ```
-2. Update the **Path** field in the JMeter HTTP Request with the new concertId.
+2. Update the **Path** field in the JMeter HTTP Request with the new concertName.
 3. Click the green play button.
 4. Clear old results: **Run → Clear All** (or `Ctrl+E`) between runs, otherwise
    listeners accumulate from previous runs.

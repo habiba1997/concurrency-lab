@@ -11,7 +11,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public final class Booking {
 
-    private Integer id;
+    private String uuid;
     private Integer seats = 0;
     private Instant createdAt;
 

@@ -1,37 +1,40 @@
 # Concurrency Lab — Project 1: Ticket Booking Service
 
-A deliberately-broken-by-default Spring Boot skeleton. Your job is to make the
-five endpoints thread-safe under heavy concurrent load, **without a database**,
-and then prove it with JMeter.
+A Spring Boot service for booking concert seats. **No database, no UI** — pure
+in-memory backend so you can experience real concurrency bugs and learn the JVM
+primitives that fix them.
 
 ---
 
-## What you need to implement
+## Current API (matches the implemented code)
 
-Open these files, in this order:
+| Method | Path | Body | Success | Errors |
+|---|---|---|---|---|
+| POST | `/concerts` | `{name, capacity}` | `201` returns full `Concert` object | `400` validation |
+| POST | `/concerts/{name}/bookings` | `{seats}` | `201` returns full `Booking` object | `404` no concert, `409` not enough seats |
+| DELETE | `/concerts/{name}/bookings/{bookingId}` | — | `204` | `404` no concert or no booking |
+| GET | `/concerts/{name}/stats` | — | `200 {capacity, reservedSeats, availableSeats, totalBookings, canceledSeats}` | `404` |
+| GET | `/concerts/{name}/bookings` | — | `200 [Booking...]` | `404` |
 
-1. `src/main/java/com/concurrencylab/booking/model/Concert.java` — design the state.
-2. `src/main/java/com/concurrencylab/booking/BookingServiceImpl.java` — implement five methods.
+**Note**: lookup key is the **concert name** (not a generated ID). Path variable
+is still named `concertName` in the controller — that's misleading and worth
+renaming.
 
-Everything else (controller, exceptions, HTTP mapping, DTOs, JMeter plan) is done.
+### Stats interpretation
+- `reservedSeats` = currently booked seats
+- `availableSeats` = `capacity - reservedSeats`
+- `totalBookings` = `reservedSeats + canceledSeats` (sum of all seats ever booked)
+- `canceledSeats` = sum of seats cancelled to date
 
-### The five service methods
+---
 
-| Method | What it does | Throws |
-|---|---|---|
-| `createConcert(name, capacity)` | Returns new concert ID | — |
-| `createBooking(concertId, seats)` | Returns new booking ID | `ConcertNotFoundException`, `InsufficientSeatsException` |
-| `cancelBooking(concertId, bookingId)` | Cancels a booking | `ConcertNotFoundException`, `BookingNotFoundException` |
-| `getStats(concertId)` | Returns 5 numbers — must be a single coherent snapshot | `ConcertNotFoundException` |
-| `listBookings(concertId)` | Returns all active bookings | `ConcertNotFoundException` |
+## Invariants that MUST hold under any load
 
-### Invariants that MUST hold under any load
-
-- **I1**: `booked + available == capacity` at all observable moments
-- **I2**: `booked` never exceeds `capacity` (no oversell)
-- **I3**: Every successful `createBooking` returns an ID visible in `listBookings`
+- **I1**: `reservedSeats + availableSeats == capacity` at all observable moments
+- **I2**: `reservedSeats` never exceeds `capacity` (no oversell)
+- **I3**: Every successful booking has an ID visible in `listBookings`
 - **I4**: Concurrent double-cancellation produces exactly one success and one 404
-- **I5**: `getStats` returns numbers that agree with each other
+- **I5**: `getStats` returns numbers that agree with each other (coherent snapshot)
 - **I6**: 1000 RPS for 60 seconds produces zero HTTP 500 errors
 
 ---
@@ -44,45 +47,59 @@ mvn clean package
 mvn spring-boot:run
 ```
 
-The app boots at `http://localhost:8080`. While running, in another terminal:
+The app boots at `http://localhost:8080`. In another terminal:
 
 ```bash
-# 1. Create a concert
+# 1. Create a concert (the NAME is the key)
 curl -sX POST http://localhost:8080/concerts \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Beethoven Night","capacity":100}' | jq .
-# → {"concertId":"<UUID>","name":"Beethoven Night","capacity":100}
+  -d '{"name":"BeethovenNight","capacity":100}' | jq .
 
 # 2. Book 2 seats
-curl -sX POST http://localhost:8080/concerts/<UUID>/bookings \
+curl -sX POST http://localhost:8080/concerts/BeethovenNight/bookings \
   -H 'Content-Type: application/json' \
   -d '{"seats":2}' | jq .
+# → response includes the booking "id" (used to cancel)
 
 # 3. Stats
-curl -s http://localhost:8080/concerts/<UUID>/stats | jq .
+curl -s http://localhost:8080/concerts/BeethovenNight/stats | jq .
 
 # 4. Cancel
-curl -sX DELETE http://localhost:8080/concerts/<UUID>/bookings/<bookingId> -i
+curl -sX DELETE http://localhost:8080/concerts/BeethovenNight/bookings/<bookingId> -i
 
 # 5. List bookings
-curl -s http://localhost:8080/concerts/<UUID>/bookings | jq .
+curl -s http://localhost:8080/concerts/BeethovenNight/bookings | jq .
 ```
-
-Until you implement the methods, each call returns HTTP 500 with
-`UnsupportedOperationException` — that's expected.
 
 ---
 
-## Running the unit-level concurrency tests
+## Testing strategy (two layers)
 
+### Layer 1 — HTTP integration tests (single-threaded)
+Validate every endpoint's happy path and error responses. Use MockMvc.
+Fast, deterministic. **Run these first** — they catch basic bugs before
+concurrency comes into play.
+
+File: `src/test/java/com/concurrencylab/booking/BookingControllerTest.java`
+
+### Layer 2 — Concurrency tests (multi-threaded)
+Hammer the service directly with an `ExecutorService` and assert invariants.
+Non-deterministic — run each test multiple times.
+
+File: `src/test/java/com/concurrencylab/booking/BookingServiceConcurrencyTest.java`
+
+Run both:
 ```bash
+mvn test
+```
+
+Run just one class:
+```bash
+mvn -Dtest=BookingControllerTest test
 mvn -Dtest=BookingServiceConcurrencyTest test
 ```
 
-Tests are `@Disabled` by default. Remove the annotation on each test once you've
-implemented the corresponding method. Run the suite **at least 20 times** before
-trusting a "pass":
-
+Run a concurrency test 20 times to catch flaky bugs:
 ```bash
 for i in {1..20}; do mvn -q -Dtest=BookingServiceConcurrencyTest test || { echo "FAILED on run $i"; break; }; done
 ```
@@ -91,45 +108,38 @@ for i in {1..20}; do mvn -q -Dtest=BookingServiceConcurrencyTest test || { echo 
 
 ## Load test with JMeter
 
-This is where it gets real. Implementations that pass single-threaded tests can
-still fail catastrophically here.
+Once unit + concurrency tests pass, the real proof is JMeter at 500 threads.
 
-You build the JMeter test plans yourself. See `load-tests/README.md` for the
-full set of scenarios (A–E), each with:
-- exact configuration (threads, ramp-up, samplers, listeners)
-- expected pass/fail signals
-- which acceptance invariant each scenario stresses
-
-Quickstart: open JMeter (`jmeter` in terminal), build the plan for **Scenario A
-— Overbooking** following the structure in `load-tests/README.md`, point it at
-a freshly-created concert with capacity 100, and run with 500 threads.
+See:
+- `load-tests/JMETER_WALKTHROUGH.md` — step-by-step click guide for Scenario A
+- `load-tests/README.md` — descriptions of Scenarios A through E
 
 ---
 
-## How to debug when your implementation breaks
+## How to debug when something breaks
 
-1. **Read the actual response codes.** JMeter's summary tells you exactly how
-   many 201s vs 409s vs 500s came back.
-2. **Re-read your `createBooking`.** If you wrote something like:
+1. **Read the response codes.** Test reports and JMeter both tell you exactly
+   how many of each code came back.
+2. **Re-read `createBooking` and `reserve()`**. If you wrote something like:
    ```
-   if (concert.getAvailable() >= seats) { concert.book(seats); }
+   if (available >= seats) { reservedSeats += seats; }
    ```
-   ask yourself: between the `if` and the `book`, can another thread sneak in?
-3. **Take a thread dump** while a test is running:
+   ask yourself: between the `if` and the `+=`, can another thread sneak in?
+3. **Thread dump while load is running**:
    ```bash
-   curl -s http://localhost:8080/actuator/threaddump | jq '.threads[] | select(.threadState != "WAITING" and .threadState != "TIMED_WAITING") | {name: .threadName, state: .threadState}'
+   curl -s http://localhost:8080/actuator/threaddump | jq '.threads[] | {name: .threadName, state: .threadState}'
    ```
-4. **Run the unit tests in a loop** (see above). They reproduce most bugs
-   faster than JMeter.
+4. **Run concurrency tests in a loop** — they reproduce most bugs faster than
+   JMeter.
 
 ---
 
 ## When to come back to chat
 
-Come back with results when you've either:
-- Implemented all five methods AND the JMeter test reports exactly 100 successes
-  and 400 failures, **OR**
-- Implemented all five methods but you're seeing one of the failure modes above.
+- After basic bugs fixed (the non-concurrency ones flagged in chat) and
+  HTTP layer tests pass.
+- After concurrency tests reveal failures — paste the output and your code.
+- After JMeter Scenario A — paste the response code counts.
 
-Either way I'll walk you through the design review questions and you can
-explain what choices you made and why.
+Don't try to fix concurrency bugs by guessing. Surface them, then we'll diagnose
+together.
