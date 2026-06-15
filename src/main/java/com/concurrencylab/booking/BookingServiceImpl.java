@@ -44,15 +44,8 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public void cancelBooking(String concertName, String bookingId) {
-        // Look up concert by ID. If missing → ConcertNotFoundException.
-        if (!concerts.containsKey(concertName)) {
-            throw new ConcertNotFoundException(concertName);
-        }
         Concert concert = concerts.get(concertName);
-        //Look up booking by ID inside the concert. If missing OR already cancelled → BookingNotFoundException.
-        if (!concert.getBookings().containsKey(bookingId)) {
-            throw new BookingNotFoundException(bookingId);
-        }
+        if (concert == null) throw new ConcertNotFoundException(concertName);
         concert.cancelBooking(bookingId);
     }
 
@@ -63,8 +56,12 @@ public class BookingServiceImpl implements BookingService {
             throw new ConcertNotFoundException(concertName);
         }
         Concert concert = concerts.get(concertName);
-        return new StatsResponse(concert.getCapacity(), concert.getReservedSeats(), concert.getAvailableSeats(),
-                concert.getReservedSeats() + concert.getCanceledSeats(), concert.getCanceledSeats());
+
+        Integer capacity = concert.getCapacity();
+        Integer reservedSeats = concert.getReservedSeats();
+        Integer canceledSeats = concert.getCanceledSeats();
+        return new StatsResponse(capacity, reservedSeats, capacity - reservedSeats,
+                reservedSeats + canceledSeats, canceledSeats);
     }
 
     @Override

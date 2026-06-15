@@ -2,9 +2,12 @@ package com.concurrencylab.booking.model;
 
 import static com.concurrencylab.utils.Utils.generateUUID;
 
+import com.concurrencylab.booking.exceptions.BookingNotFoundException;
 import com.concurrencylab.booking.exceptions.InsufficientSeatsException;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -21,8 +24,8 @@ public class Concert {
     private String name;
     private Integer capacity = 0;
     private AtomicInteger reservedSeats = new AtomicInteger(0);
-    private Integer canceledSeats = 0;
-    private HashMap<String, Booking> bookings = new HashMap<>();
+    private AtomicInteger canceledSeats = new AtomicInteger(0);
+    private Map<String, Booking> bookings = new ConcurrentHashMap<>();
 
     public Concert(String name, Integer capacity) {
         this.name = name;
@@ -33,21 +36,20 @@ public class Concert {
         return reservedSeats.intValue();
     }
 
-    public void setReservedSeats(Integer reservedSeats) {
-        boolean setted = this.reservedSeats.compareAndSet(this.getReservedSeats(), reservedSeats);
-        if (!setted) {
-            log.error("Issue Occurred: Failed to update reserved seats for concert {}. Expected: {}, Actual: {}",
-                    this.name, this.getReservedSeats(), reservedSeats);
-        }
-    }
+    public Booking reserve(int reservedSeatsValue) {
 
-    public synchronized Booking reserve(int reservedSeats) {
-        Integer availableSeats = this.getAvailableSeats();
-        if (availableSeats < reservedSeats) {
-            throw new InsufficientSeatsException(reservedSeats, availableSeats);
+        while (true) {
+            int current = this.reservedSeats.get();
+            Integer availableSeats = this.getAvailableSeats();
+            if (availableSeats < reservedSeatsValue) {
+                throw new InsufficientSeatsException(reservedSeatsValue, availableSeats);
+            }
+            int newValue = reservedSeatsValue + current;
+            if (this.reservedSeats.compareAndSet(current, newValue)) {
+                break;
+            }
         }
-        this.setReservedSeats(this.getReservedSeats() + reservedSeats);
-        Booking booking = new Booking(generateUUID(), reservedSeats, Instant.now());
+        Booking booking = new Booking(generateUUID(), reservedSeatsValue, Instant.now());
         this.bookings.put(booking.getUuid(), booking);
         return booking;
     }
@@ -60,11 +62,16 @@ public class Concert {
         return available;
     }
 
+    public Integer getCanceledSeats() {
+        return canceledSeats.intValue();
+    }
 
     public void cancelBooking(String bookingId) {
-        Booking booking = bookings.get(bookingId);
-        this.canceledSeats = canceledSeats + booking.getSeats();
-        this.setReservedSeats(this.getReservedSeats() - booking.getSeats());
-        this.getBookings().remove(bookingId);
+        Booking booking = bookings.remove(bookingId);   // atomic: returns old value or null
+        if (booking == null) {
+            throw new BookingNotFoundException(bookingId);
+        }
+        canceledSeats.addAndGet(booking.getSeats());
+        reservedSeats.addAndGet(-booking.getSeats());
     }
 }
