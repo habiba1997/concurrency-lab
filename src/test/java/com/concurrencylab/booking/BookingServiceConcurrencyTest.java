@@ -181,38 +181,45 @@ class BookingServiceConcurrencyTest {
         CountDownLatch endGate = new CountDownLatch(totalWrites + totalReads);
         AtomicInteger inconsistencies = new AtomicInteger();
 
-        for (int i = 0; i < totalWrites; i++) {
-            pool.submit(() -> {
-                try {
-                    startGate.await();
-                    service.createBooking(name, 1);
-                } catch (InsufficientSeatsException e) {
-                    log.error("Insufficient seats for booking " + name);
-                } catch (Exception e) {
-                    fail("Unexpected exception: " + e);
-                } finally {
-                    endGate.countDown();
-                }
-            });
-        }
+        // Extract the two task types into named Runnables so we can interleave
+        // their submission. Without interleaving, the pool would pull all writers
+        // first (FIFO queue), finish them, THEN pull readers — no overlap, no race.
+        Runnable writerTask = () -> {
+            try {
+                startGate.await();
+                service.createBooking(name, 1);
+            } catch (InsufficientSeatsException e) {
+                log.error("Insufficient seats for booking " + name);
+            } catch (Exception e) {
+                fail("Unexpected exception: " + e);
+            } finally {
+                endGate.countDown();
+            }
+        };
 
-        for (int i = 0; i < totalReads; i++) {
-            pool.submit(() -> {
-                try {
-                    startGate.await();
-                    //Result: 10,000 reads total (100 readers × 100 reads each).
-                    for (int j = 0; j < 100; j++) {                            // ← NEW inner loop
-                        StatsResponse stats = service.getStats(name);          //   read
-                        if (stats.booked() + stats.available() != stats.capacity()) {
-                            inconsistencies.incrementAndGet();
-                        }
+        Runnable readerTask = () -> {
+            try {
+                startGate.await();
+                // 100 reads per reader × 100 readers = 10,000 total reads
+                for (int j = 0; j < 100; j++) {
+                    StatsResponse stats = service.getStats(name);
+                    if (stats.booked() + stats.available() != stats.capacity()) {
+                        inconsistencies.incrementAndGet();
                     }
-                } catch (Exception e) {
-                    fail("Unexpected exception: " + e);
-                } finally {
-                    endGate.countDown();
                 }
-            });
+            } catch (Exception e) {
+                fail("Unexpected exception: " + e);
+            } finally {
+                endGate.countDown();
+            }
+        };
+
+        // Interleaved submission: queue becomes [W, R, W, R, ...] so the first
+        // batch of workers picks up a mix of writers AND readers.
+        // Assumes totalWrites == totalReads (both 100 here).
+        for (int i = 0; i < totalWrites; i++) {
+            pool.submit(writerTask);
+            pool.submit(readerTask);
         }
 
         startGate.countDown();
@@ -305,38 +312,42 @@ class BookingServiceConcurrencyTest {
         AtomicInteger bookerSuccesses = new AtomicInteger();
         AtomicInteger cancellerSuccesses = new AtomicInteger();
 
-        for (int i = 0; i < bookers; i++) {
-            pool.submit(() -> {
-                try {
-                    startGate.await();
-                    service.createBooking(name, 1);
-                    bookerSuccesses.incrementAndGet();
-                } catch (InsufficientSeatsException e) {
-                    log.error("Insufficient seats for booking " + name);
-                } catch (Exception e) {
-                    fail("Unexpected: " + e);
-                } finally {
-                    endGate.countDown();
-                }
-            });
-        }
+        // Same interleaving fix as C2: without it, all 500 bookers run BEFORE
+        // any canceller (FIFO queue), so the test exercises zero overlap.
+        Runnable bookerTask = () -> {
+            try {
+                startGate.await();
+                service.createBooking(name, 1);
+                bookerSuccesses.incrementAndGet();
+            } catch (InsufficientSeatsException e) {
+                log.error("Insufficient seats for booking " + name);
+            } catch (Exception e) {
+                fail("Unexpected: " + e);
+            } finally {
+                endGate.countDown();
+            }
+        };
 
-        for (int i = 0; i < cancellers; i++) {
-            pool.submit(() -> {
-                try {
-                    startGate.await();
-                    String id = idsToCancel.poll();  // atomically take next id
-                    if (id == null) {
-                        return;
-                    }
-                    service.cancelBooking(name, id);
-                    cancellerSuccesses.incrementAndGet();
-                } catch (BookingNotFoundException e) { /* shouldn't happen with unique ids */ } catch (Exception e) {
-                    fail("Unexpected: " + e);
-                } finally {
-                    endGate.countDown();
-                }
-            });
+        Runnable cancellerTask = () -> {
+            try {
+                startGate.await();
+                String id = idsToCancel.poll();  // atomically take next id
+                if (id == null) return;
+                service.cancelBooking(name, id);
+                cancellerSuccesses.incrementAndGet();
+            } catch (BookingNotFoundException e) {
+                // shouldn't happen — each canceller gets a unique id
+            } catch (Exception e) {
+                fail("Unexpected: " + e);
+            } finally {
+                endGate.countDown();
+            }
+        };
+
+        // Interleaved: [B, C, B, C, ...] — assumes bookers == cancellers.
+        for (int i = 0; i < bookers; i++) {
+            pool.submit(bookerTask);
+            pool.submit(cancellerTask);
         }
 
         startGate.countDown();
