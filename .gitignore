@@ -8,3 +8,23 @@ target/
 load-tests/results/
 load-tests/*.log
 load-tests/jmeter.log
+
+# Local-only files and generated output
+.DS_Store
+.idea/
+.vscode/
+.qodo/
+node_modules/
+target/
+.next/
+out/
+dist/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.log
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
